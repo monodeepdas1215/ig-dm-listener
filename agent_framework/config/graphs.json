@@ -1,0 +1,172 @@
+{
+  "graphs": [
+    {
+      "name": "insta-dm-automation",
+      "description": "Analyze Instagram Reels in DMs",
+      "llm_ref": "gemini_flash",
+      "state": "agent_framework.graphs.insta_dm_automation.state.InstaDMState",
+      "checkpointer": "memory",
+      "entry_point": "authenticate_clients",
+      "finish_point": "generate_summary",
+      "nodes": [
+        {
+          "name": "authenticate_clients",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.insta_dm_automation.nodes.authenticate.AuthenticateClientsNode"
+        },
+        {
+          "name": "fetch_messages",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.insta_dm_automation.nodes.fetch_messages.FetchMessagesNode"
+        },
+        {
+          "name": "download_reels",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.insta_dm_automation.nodes.download_reels.DownloadReelsNode"
+        },
+        {
+          "name": "analyze_reels",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.insta_dm_automation.nodes.analyze_reels.AnalyzeReelsNode"
+        },
+        {
+          "name": "generate_summary",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.insta_dm_automation.nodes.generate_summary.GenerateSummaryNode"
+        }
+      ],
+      "edges": [
+        {
+          "from": "authenticate_clients",
+          "to": "fetch_messages"
+        },
+        {
+          "from": "fetch_messages",
+          "to": "download_reels",
+          "condition": {
+            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.has_unread_reels",
+            "description": "Proceed to download if there are new reels"
+          }
+        },
+        {
+          "from": "fetch_messages",
+          "to": "generate_summary",
+          "condition": {
+            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.no_unread_reels",
+            "description": "Skip to summary if no new reels"
+          }
+        },
+        {
+          "from": "download_reels",
+          "to": "analyze_reels",
+          "condition": {
+            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.has_downloaded_files",
+            "description": "Proceed to analysis only if at least one reel was downloaded"
+          }
+        },
+        {
+          "from": "download_reels",
+          "to": "generate_summary",
+          "condition": {
+            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.no_downloaded_files",
+            "description": "Skip to summary on total download failure"
+          }
+        },
+        {
+          "from": "analyze_reels",
+          "to": "generate_summary"
+        }
+      ]
+    },
+    {
+      "name": "backfill-reel-info",
+      "description": "Backfill stale/failed reel records that errored in the main pipeline",
+      "llm_ref": "gemini_flash",
+      "state": "agent_framework.graphs.backfill_reel_info.state.BackfillReelInfoState",
+      "checkpointer": "memory",
+      "entry_point": "read_n_records",
+      "finish_point": "report",
+      "nodes": [
+        {
+          "name": "read_n_records",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.backfill_reel_info.nodes.read_n_records.ReadNRecordsNode"
+        },
+        {
+          "name": "segregate_records",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.backfill_reel_info.nodes.segregate_records.SegregateRecordsNode"
+        },
+        {
+          "name": "download",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.backfill_reel_info.nodes.download.DownloadNode"
+        },
+        {
+          "name": "summarize",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.backfill_reel_info.nodes.summarize.SummarizeNode"
+        },
+        {
+          "name": "report",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.backfill_reel_info.nodes.report.ReportNode"
+        }
+      ],
+      "edges": [
+        {
+          "from": "read_n_records",
+          "to": "segregate_records",
+          "condition": {
+            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.has_stale_records",
+            "description": "Proceed if stale/failed records found"
+          }
+        },
+        {
+          "from": "read_n_records",
+          "to": "report",
+          "condition": {
+            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.no_stale_records",
+            "description": "Skip to report if nothing to backfill"
+          }
+        },
+        {
+          "from": "segregate_records",
+          "to": "download",
+          "condition": {
+            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.has_downloads_needed",
+            "description": "Route to download if records need downloading"
+          }
+        },
+        {
+          "from": "segregate_records",
+          "to": "summarize",
+          "condition": {
+            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.no_downloads_needed",
+            "description": "Skip to summarize if only summaries needed"
+          }
+        },
+        {
+          "from": "download",
+          "to": "summarize",
+          "condition": {
+            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.has_summaries_needed",
+            "description": "Proceed to summarize after downloads"
+          }
+        },
+        {
+          "from": "download",
+          "to": "report",
+          "condition": {
+            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.no_summaries_needed",
+            "description": "Skip to report if no summaries needed"
+          }
+        },
+        {
+          "from": "summarize",
+          "to": "report"
+        }
+      ]
+    }
+  ]
+}

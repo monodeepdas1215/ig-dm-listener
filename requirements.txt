@@ -1,0 +1,15 @@
+fastapi
+uvicorn[standard]
+instagrapi
+instaloader
+langgraph>=0.4
+langchain-core>=0.3
+langchain-openai>=0.3
+langchain-anthropic>=0.3
+langchain-google-genai>=2.1
+deepagents>=0.1
+pydantic>=2.0
+python-dotenv>=1.0
+mcp>=1.0
+asyncpg>=0.30
+apscheduler>=3.10

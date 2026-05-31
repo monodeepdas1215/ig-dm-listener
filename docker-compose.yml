@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  postgres:
+    image: postgres:18.4-alpine
+    environment:
+      POSTGRES_DB: ig_dm_listener
+      POSTGRES_USER: igapp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-igapp_secret}
+    volumes:
+      - postgres_data:/var/lib/postgresql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U igapp -d ig_dm_listener"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./.env:/app/.env
+      - ./.instagrapi-session.json:/app/.instagrapi-session.json
+      - ./downloaded_reel:/app/downloaded_reel
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - RUNNER_TYPE=fastapi
+      - DOWNLOAD_DIR=/app/downloaded_reel
+      - DATABASE_URL=postgresql://igapp:${POSTGRES_PASSWORD:-igapp_secret}@postgres:5432/ig_dm_listener
+
+  cron:
+    build:
+      context: .
+      dockerfile: Dockerfile.cron
+    volumes:
+      - ./.env:/app/.env
+      - ./.instagrapi-session.json:/app/.instagrapi-session.json
+      - ./downloaded_reel:/app/downloaded_reel
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      - RUNNER_TYPE=cron
+      - CRON_SCHEDULE=0 * * * *
+      - CRON_GRAPH_NAME=insta-dm
+      - DOWNLOAD_DIR=/app/downloaded_reel
+      - DATABASE_URL=postgresql://igapp:${POSTGRES_PASSWORD:-igapp_secret}@postgres:5432/ig_dm_listener
+
+volumes:
+  postgres_data:
