@@ -69,6 +69,8 @@ class FetchMessagesNode(InstaDMBaseNode):
                 if shortcode:
                     media_pk = str(clip.get("pk", ""))
                 
+                creator_username = clip.get("creator_username") or ""
+                
                 if msg_id:
                     await insert_reel_ongoing(
                         message_id=msg_id, 
@@ -77,7 +79,8 @@ class FetchMessagesNode(InstaDMBaseNode):
                         video_url=video_url, 
                         shortcode=shortcode, 
                         reel_url=reel_url, 
-                        media_pk=media_pk
+                        media_pk=media_pk,
+                        creator_username=creator_username,
                     )
 
         logger.info(f"Found {len(unread_reels)} new unread reels out of {len(messages)} fetched messages.")

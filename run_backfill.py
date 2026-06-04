@@ -9,7 +9,12 @@ from agent_framework.core.llm_loader import LLMLoader
 from agent_framework.tools.mcp_loader import McpToolLoader
 from agent_framework.core.graph_compiler import GraphCompiler
 from app.logging_config import configure_logging
-from agent_framework.runner import load_config
+import json
+
+def load_config(file_path: str, model_class):
+    with open(file_path, "r") as f:
+        data = json.load(f)
+    return model_class.model_validate(data)
 
 async def main():
     # Setup dedicated backfill log file

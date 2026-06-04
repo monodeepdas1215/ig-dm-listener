@@ -28,6 +28,7 @@ services:
       - ./.env:/app/.env
       - ./.instagrapi-session.json:/app/.instagrapi-session.json
       - ./downloaded_reel:/app/downloaded_reel
+      - ./logs:/app/logs
     restart: unless-stopped
     depends_on:
       postgres:
@@ -47,6 +48,7 @@ services:
       - ./.env:/app/.env
       - ./.instagrapi-session.json:/app/.instagrapi-session.json
       - ./downloaded_reel:/app/downloaded_reel
+      - ./logs:/app/logs
     restart: unless-stopped
     depends_on:
       postgres:

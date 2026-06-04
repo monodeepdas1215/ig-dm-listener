@@ -42,6 +42,10 @@ class GenerateSummaryNode(InstaDMBaseNode):
         elif pipeline_status != PipelineStatus.FAILURE.value:
             final_report_lines.append("No reel summaries to report.")
 
+        kb_sync = state.get("kb_sync_count", "")
+        if kb_sync:
+            final_report_lines.append(f"\nObsidian KB Sync: {kb_sync}")
+
         final_report = "\n".join(final_report_lines)
         logger.info("Generated final summary report.")
         

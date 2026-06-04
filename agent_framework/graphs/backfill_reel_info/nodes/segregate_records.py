@@ -21,21 +21,20 @@ class SegregateRecordsNode(BackfillBaseNode):
             local_path = record.get("local_path")
             summary_json = record.get("summary_json")
             
-            # Check if download is needed
+            # Check if download is needed (only if we don't already have the summary)
             needs_download = False
-            if not local_path:
-                needs_download = True
-            elif not os.path.exists(local_path):
-                needs_download = True
+            if not summary_json:
+                if not local_path or not os.path.exists(local_path):
+                    needs_download = True
                 
             if needs_download:
                 requires_download.append(record)
             elif not summary_json:
                 requires_summary.append(record)
             else:
-                # Should not happen for ONGOING/FAILED if the system works correctly, 
-                # but handle just in case it's actually complete
-                logger.warning(f"Record {msg_id} picked up for backfill but appears complete. Marking ANALYZED.")
+                # Already has summary_json, so it's ready to be synced.
+                # Ensure the database lifecycle state is set to ANALYZED.
+                logger.info(f"Record {msg_id} already has summary_json. Ensuring state is ANALYZED.")
                 await update_lifecycle_state(msg_id, LifecycleState.ANALYZED)
                 
         logger.info(f"Segregated {len(stale_records)} records: {len(requires_download)} need download, {len(requires_summary)} need summary only.")

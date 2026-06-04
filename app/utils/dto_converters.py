@@ -60,6 +60,13 @@ def convert_clip_metadata(clip: Any) -> dict[str, Any] | None:
     if clip is None:
         return None
     code = getattr(clip, "code", None)
+    user = getattr(clip, "user", None)
+    creator_username = None
+    if user:
+        if isinstance(user, dict):
+            creator_username = user.get("username")
+        else:
+            creator_username = getattr(user, "username", None)
     return {
         "pk": str(getattr(clip, "pk", "") or ""),
         "code": code,
@@ -69,4 +76,5 @@ def convert_clip_metadata(clip: Any) -> dict[str, Any] | None:
         "caption_text": getattr(clip, "caption_text", None),
         "like_count": getattr(clip, "like_count", None),
         "play_count": getattr(clip, "play_count", None),
+        "creator_username": creator_username,
     }

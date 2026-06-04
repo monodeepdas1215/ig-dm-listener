@@ -68,6 +68,10 @@ class Settings:
     )
     db_pool_min: int = int(os.getenv("DB_POOL_MIN", "2"))
     db_pool_max: int = int(os.getenv("DB_POOL_MAX", "10"))
+    max_concurrent_workers: int = int(os.getenv("MAX_CONCURRENT_WORKERS", "2"))
+    
+    # Obsidian
+    obsidian_vault_folder: str = os.getenv("OBSIDIAN_VAULT_FOLDER", "raw/instaKB")
 
 
 settings = Settings()

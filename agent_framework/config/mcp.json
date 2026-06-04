@@ -1,9 +1,23 @@
 {
   "mcpServers": {
-    "filesystem": {
+    "obsidian": {
+      "type": "http",
+      "url": "https://127.0.0.1:27124/mcp/",
+      "headers": {
+        "Authorization": "Bearer a2cb37b4b3e2f91ad91063e05dfa72466a8a8feecd3135d6ad028459aa1306cb"
+      }
+    },
+    "zai-vision-mcp": {
+      "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@modelcontextprotocol/server-filesystem", "/Users/monodeeps/data"],
-      "env": {}
+      "args": [
+        "-y",
+        "@z_ai/mcp-server"
+      ],
+      "env": {
+        "Z_AI_API_KEY": "YOUR_ZAI_API_KEY",
+        "Z_AI_MODE": "ZAI"
+      }
     }
   }
 }

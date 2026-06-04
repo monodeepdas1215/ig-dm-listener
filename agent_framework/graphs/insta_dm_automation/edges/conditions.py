@@ -15,3 +15,12 @@ def has_downloaded_files(state: InstaDMState) -> bool:
 def no_downloaded_files(state: InstaDMState) -> bool:
     """Skip analysis if download was a total failure."""
     return len(state.get('downloaded_files', [])) == 0
+
+def has_reel_summaries(state: InstaDMState) -> bool:
+    """Proceed to update knowledge base if we have any summaries."""
+    return len(state.get('reel_summaries', [])) > 0
+
+def no_reel_summaries(state: InstaDMState) -> bool:
+    """Skip knowledge base update if no summaries were produced."""
+    return len(state.get('reel_summaries', [])) == 0
+

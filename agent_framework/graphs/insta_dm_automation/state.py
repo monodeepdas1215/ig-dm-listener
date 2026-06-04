@@ -11,4 +11,5 @@ class InstaDMState(AgentState):
     downloaded_files: list[dict[str, Any]] = []  # dict with message_id and local_path
     reel_summaries: list[dict[str, Any]] = []    # list of structured JSON responses
     final_report: str = ""
+    kb_sync_count: str = ""
     failed_reels: list[dict[str, Any]] = []

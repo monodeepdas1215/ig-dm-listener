@@ -54,6 +54,7 @@ class ReportNode(BackfillBaseNode):
             f"| Summaries Failed | {summaries_failed} |",
             f"| Fully Resolved (→ ANALYZED) | {fully_resolved} |",
             f"| Marked FAILED | {marked_failed} |",
+            f"| Obsidian KB Synced | {state.get('kb_sync_count', '—')} |",
             ""
         ]
         

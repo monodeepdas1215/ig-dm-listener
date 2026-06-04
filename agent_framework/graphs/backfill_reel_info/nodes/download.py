@@ -13,8 +13,8 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-async def backfill_download_task(client: Any, record: dict[str, Any]) -> str:
-    """Returns local_path on success, raises Exception on failure."""
+async def backfill_download_task(client: Any, record: dict[str, Any]) -> tuple[str, str]:
+    """Returns (local_path, creator_username) on success, raises Exception on failure."""
     message_id = record["message_id"]
     shortcode = record["shortcode"]
     media_pk = record.get("media_pk")
@@ -39,7 +39,11 @@ async def backfill_download_task(client: Any, record: dict[str, Any]) -> str:
     os.rename(path, new_path)
     logger.info(f"Downloaded and renamed successfully to {new_path}")
     
-    return new_path
+    creator_username = ""
+    if media.user and hasattr(media.user, "username"):
+        creator_username = media.user.username
+        
+    return new_path, creator_username
 
 class DownloadNode(BackfillBaseNode):
     async def run(self, state: BackfillReelInfoState) -> dict[str, Any]:
@@ -63,11 +67,11 @@ class DownloadNode(BackfillBaseNode):
                 # and this is a background repair job, but we could add a sleep if needed.
                 # If we encounter rate limits, ResilientCaller pattern would be better,
                 # but for sequential backfill, basic try/except is okay for now.
-                local_path = await backfill_download_task(client, record)
+                local_path, creator_username = await backfill_download_task(client, record)
                 
                 # Success
                 media_pk = record.get("media_pk", "")
-                await update_reel_downloaded(msg_id, local_path, media_pk)
+                await update_reel_downloaded(msg_id, local_path, media_pk, creator_username)
                 
                 # Check if it also needs summarization
                 if not record.get("summary_json"):

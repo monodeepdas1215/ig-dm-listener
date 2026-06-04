@@ -1,10 +1,9 @@
 import json
 import logging
 from typing import Dict, List, Any
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-from mcp.client.sse import sse_client
-from langchain_core.tools import BaseTool, tool
+import httpx
+from langchain_core.tools import BaseTool
+from langchain_mcp_adapters.client import MultiServerMCPClient
 from agent_framework.tools.base import BaseToolLoader
 
 logger = logging.getLogger(__name__)
@@ -13,100 +12,71 @@ logger = logging.getLogger(__name__)
 class McpToolLoader(BaseToolLoader):
     """Loads tools from MCP servers.
 
-    Reads mcp.json config, connects to each server (stdio or SSE),
-    discovers available tools via the MCP protocol, and wraps them
-    as LangChain BaseTool instances.
+    Reads mcp.json config, connects to each server using MultiServerMCPClient,
+    and returns them as LangChain BaseTool instances.
     """
 
     def __init__(self, config_path: str = "agent_framework/config/mcp.json"):
         self.config_path = config_path
-        self._sessions: Dict[str, ClientSession] = {}
-        self._exit_stacks = []
+        self._client: MultiServerMCPClient | None = None
 
-    async def _init_sessions(self):
-        """Initialize sessions if not already done."""
-        if self._sessions:
-            return
-
-        import asyncio
-        from contextlib import AsyncExitStack
-        
+    def _build_server_configs(self) -> dict:
+        """Parse mcp.json into MultiServerMCPClient config format."""
         try:
             with open(self.config_path, "r") as f:
                 config_data = json.load(f)
         except Exception as e:
             logger.error(f"Failed to load MCP config {self.config_path}: {e}")
-            return
+            return {}
 
-        servers = config_data.get("mcpServers", {})
-        
-        for name, conf in servers.items():
-            try:
-                stack = AsyncExitStack()
-                self._exit_stacks.append(stack)
+        servers = {}
+        for name, conf in config_data.get("mcpServers", {}).items():
+            if "command" in conf:
+                servers[name] = {
+                    "transport": "stdio",
+                    "command": conf["command"],
+                    "args": conf.get("args", []),
+                    "env": conf.get("env", None),
+                }
+            elif conf.get("type") == "http" or "url" in conf:
+                transport = "streamable_http" if conf.get("type") == "http" else "sse"
+                servers[name] = {
+                    "transport": transport,
+                    "url": conf["url"],
+                    "headers": conf.get("headers", {}),
+                    "httpx_client_factory": self._make_httpx_factory(),
+                }
+        return servers
 
-                if "command" in conf:
-                    # Stdio client
-                    server_params = StdioServerParameters(
-                        command=conf["command"],
-                        args=conf.get("args", []),
-                        env=conf.get("env", None)
-                    )
-                    transport, _ = await stack.enter_async_context(stdio_client(server_params))
-                elif "url" in conf:
-                    # SSE client
-                    url = conf["url"]
-                    headers = conf.get("headers", {})
-                    transport, _ = await stack.enter_async_context(sse_client(url, headers=headers))
-                else:
-                    logger.warning(f"Invalid MCP server config for '{name}'")
-                    continue
-
-                session = await stack.enter_async_context(ClientSession(transport, transport))
-                await session.initialize()
-                self._sessions[name] = session
-            except Exception as e:
-                logger.error(f"Failed to connect to MCP server '{name}': {e}")
-
-    def _wrap_mcp_tool(self, server_name: str, mcp_tool: Any, session: ClientSession) -> BaseTool:
-        """Wrap an MCP tool as a LangChain tool."""
-        # Simple dynamic wrapper creation.
-        # DeepAgent/LangChain can consume standard callable tools
-        
-        async def mcp_tool_wrapper(**kwargs):
-            try:
-                result = await session.call_tool(mcp_tool.name, arguments=kwargs)
-                return result
-            except Exception as e:
-                return f"Error calling tool {mcp_tool.name}: {e}"
-        
-        mcp_tool_wrapper.__name__ = mcp_tool.name
-        mcp_tool_wrapper.__doc__ = mcp_tool.description
-        
-        # We use the @tool decorator to automatically convert it to a BaseTool subclass.
-        return tool(mcp_tool_wrapper)
+    @staticmethod
+    def _make_httpx_factory():
+        """Factory for httpx client that bypasses self-signed SSL certs."""
+        def factory(headers=None, timeout=None, auth=None):
+            return httpx.AsyncClient(
+                verify=False,
+                headers=headers,
+                timeout=timeout,
+                auth=auth,
+            )
+        return factory
 
     async def load_tools(self) -> list[BaseTool]:
-        """Load tools from all initialized MCP servers."""
-        await self._init_sessions()
-        
-        tools = []
-        for server_name, session in self._sessions.items():
-            try:
-                response = await session.list_tools()
-                for t in response.tools:
-                    tools.append(self._wrap_mcp_tool(server_name, t, session))
-            except Exception as e:
-                logger.error(f"Error fetching tools from {server_name}: {e}")
-        return tools
+        """Load tools from all configured MCP servers."""
+        if self._client is not None:
+            return await self._client.get_tools()
+
+        configs = self._build_server_configs()
+        if not configs:
+            return []
+
+        try:
+            self._client = MultiServerMCPClient(configs)
+            tools = await self._client.get_tools()
+            return tools
+        except Exception as e:
+            logger.error(f"Failed to load MCP tools: {e}")
+            return []
 
     async def cleanup(self) -> None:
-        """Close all MCP sessions."""
-        import asyncio
-        for stack in self._exit_stacks:
-            try:
-                await stack.aclose()
-            except Exception as e:
-                logger.error(f"Error cleaning up MCP session: {e}")
-        self._sessions.clear()
-        self._exit_stacks.clear()
+        """Clean up the client."""
+        self._client = None

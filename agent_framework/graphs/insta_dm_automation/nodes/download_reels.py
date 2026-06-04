@@ -44,7 +44,17 @@ async def download_file_task(client: Any, url: str, message_id: str) -> dict[str
         os.remove(new_path)
     os.rename(path, new_path)
     logger.info(f"Downloaded and renamed successfully to {new_path}")
-    return {"message_id": message_id, "local_path": new_path, "media_pk": str(media_pk)}
+    
+    creator_username = ""
+    if media.user and hasattr(media.user, "username"):
+        creator_username = media.user.username
+        
+    return {
+        "message_id": message_id, 
+        "local_path": new_path, 
+        "media_pk": str(media_pk),
+        "creator_username": creator_username
+    }
 
 class DownloadReelsNode(InstaDMBaseNode):
     async def run(self, state: InstaDMState) -> dict[str, Any]:
@@ -99,9 +109,10 @@ class DownloadReelsNode(InstaDMBaseNode):
                 msg_id = res["message_id"]
                 local_path = res["local_path"]
                 media_pk = res.get("media_pk", "")
+                creator_username = res.get("creator_username", "")
                 
                 downloaded_files.append({"message_id": msg_id, "local_path": local_path})
-                await update_reel_downloaded(msg_id, local_path, media_pk)
+                await update_reel_downloaded(msg_id, local_path, media_pk, creator_username)
                 
         status = compute_pipeline_status(len(task_fns), len(downloaded_files))
         logger.info(f"Successfully downloaded {len(downloaded_files)} reels. Pipeline status: {status.value}")

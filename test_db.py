@@ -52,22 +52,22 @@ async def _clean_and_seed(conn: asyncpg.Connection) -> None:
 
     # 1. Stale ONGOING  → should be returned
     await conn.execute(
-        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at) VALUES ($1, $2, $3)",
+        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at, updated_at) VALUES ($1, $2, $3, $3)",
         "msg1", LifecycleState.ONGOING.value, stale_time,
     )
     # 2. Recent ONGOING → should NOT be returned
     await conn.execute(
-        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at) VALUES ($1, $2, $3)",
+        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at, updated_at) VALUES ($1, $2, $3, $3)",
         "msg2", LifecycleState.ONGOING.value, recent_time,
     )
     # 3. Stale FAILED   → should be returned
     await conn.execute(
-        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at) VALUES ($1, $2, $3)",
+        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at, updated_at) VALUES ($1, $2, $3, $3)",
         "msg3", LifecycleState.FAILED.value, stale_time,
     )
-    # 4. Stale DOWNLOADED → should NOT be returned
+    # 4. Stale DOWNLOADED → should be returned
     await conn.execute(
-        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at) VALUES ($1, $2, $3)",
+        "INSERT INTO reel_analysis (message_id, lifecycle_state, created_at, updated_at) VALUES ($1, $2, $3, $3)",
         "msg4", LifecycleState.DOWNLOADED.value, stale_time,
     )
 
@@ -79,11 +79,17 @@ async def _get_stale_or_failed(
         """
         SELECT * FROM reel_analysis
         WHERE lifecycle_state = ANY($1::text[])
-          AND created_at <= NOW() - ($2 * INTERVAL '1 minute')
+          AND updated_at <= NOW() - ($2 * INTERVAL '1 minute')
         ORDER BY created_at ASC
         LIMIT $3
         """,
-        [LifecycleState.ONGOING.value, LifecycleState.FAILED.value],
+        [
+            LifecycleState.ONGOING.value,
+            LifecycleState.DOWNLOADED.value,
+            LifecycleState.ANALYZED.value,
+            LifecycleState.FAILED.value,
+            LifecycleState.RETRYING.value,
+        ],
         threshold_minutes,
         limit,
     )
@@ -99,10 +105,10 @@ async def test() -> None:
         ids = [r["message_id"] for r in records]
 
         print(f"Picked up IDs: {ids}")
-        if set(ids) == {"msg1", "msg3"}:
-            print("✅ SUCCESS: DB query correctly picked up stale ONGOING and FAILED records.")
+        if set(ids) == {"msg1", "msg3", "msg4"}:
+            print("✅ SUCCESS: DB query correctly picked up stale ONGOING, FAILED, and DOWNLOADED records.")
         else:
-            print(f"❌ FAILED: expected {{msg1, msg3}}, got {set(ids)}")
+            print(f"❌ FAILED: expected {{msg1, msg3, msg4}}, got {set(ids)}")
     finally:
         # Cleanup test data
         await conn.execute("DROP TABLE IF EXISTS reel_analysis")

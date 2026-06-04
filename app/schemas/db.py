@@ -7,6 +7,7 @@ class LifecycleState(str, Enum):
     ONGOING = "ONGOING"
     DOWNLOADED = "DOWNLOADED"
     ANALYZED = "ANALYZED"
+    SYNCED = "SYNCED"
     FAILED = "FAILED"
     RETRYING = "RETRYING"
 

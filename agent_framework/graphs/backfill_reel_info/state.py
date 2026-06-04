@@ -9,4 +9,5 @@ class BackfillReelInfoState(AgentState):
     requires_summary: list[dict[str, Any]] = []
     download_results: list[dict[str, Any]] = []   # {"message_id", "status", "error"}
     summary_results: list[dict[str, Any]] = []    # {"message_id", "status", "error"}
+    kb_sync_count: str = ""
     backfill_report_path: str = ""

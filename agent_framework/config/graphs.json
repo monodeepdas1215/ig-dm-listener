@@ -30,6 +30,11 @@
           "path": "agent_framework.graphs.insta_dm_automation.nodes.analyze_reels.AnalyzeReelsNode"
         },
         {
+          "name": "update_knowledge_base",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.insta_dm_automation.nodes.update_knowledge_base.UpdateKnowledgeBaseNode"
+        },
+        {
           "name": "generate_summary",
           "type": "graph-node",
           "path": "agent_framework.graphs.insta_dm_automation.nodes.generate_summary.GenerateSummaryNode"
@@ -74,6 +79,22 @@
         },
         {
           "from": "analyze_reels",
+          "to": "update_knowledge_base",
+          "condition": {
+            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.has_reel_summaries",
+            "description": "Proceed to sync knowledge base if we have summaries"
+          }
+        },
+        {
+          "from": "analyze_reels",
+          "to": "generate_summary",
+          "condition": {
+            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.no_reel_summaries",
+            "description": "Skip knowledge base if no summaries"
+          }
+        },
+        {
+          "from": "update_knowledge_base",
           "to": "generate_summary"
         }
       ]
@@ -106,6 +127,11 @@
           "name": "summarize",
           "type": "graph-node",
           "path": "agent_framework.graphs.backfill_reel_info.nodes.summarize.SummarizeNode"
+        },
+        {
+          "name": "update_knowledge_base",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.backfill_reel_info.nodes.update_knowledge_base.BackfillUpdateKnowledgeBaseNode"
         },
         {
           "name": "report",
@@ -156,14 +182,18 @@
         },
         {
           "from": "download",
-          "to": "report",
+          "to": "update_knowledge_base",
           "condition": {
             "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.no_summaries_needed",
-            "description": "Skip to report if no summaries needed"
+            "description": "Proceed to knowledge base sync if no summaries needed"
           }
         },
         {
           "from": "summarize",
+          "to": "update_knowledge_base"
+        },
+        {
+          "from": "update_knowledge_base",
           "to": "report"
         }
       ]

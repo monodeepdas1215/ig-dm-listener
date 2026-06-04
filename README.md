@@ -142,13 +142,70 @@ python -m agent_framework.runner --list
 python -m agent_framework.runner --validate
 ```
 
-### 5. Run the main pipeline
+### 5. Run the application (Choose a mode)
 
+The application supports three runner modes configured via the `RUNNER_TYPE` environment variable:
+
+#### CLI Mode (Default)
+Best for manual execution and testing:
+
+##### Run the Main DM Automation Graph
 ```bash
 python -m agent_framework.runner \
   --graph insta-dm-automation \
   --input "Process new DMs"
 ```
+
+##### Run the Backfill Graph
+To retry stale/failed reel records that errored in the main pipeline, run the backfill graph using either the framework runner or the standalone script:
+
+*Option A: Using the general framework CLI runner:*
+```bash
+python -m agent_framework.runner \
+  --graph backfill-reel-info \
+  --input "Backfill stale records"
+```
+
+*Option B: Using the standalone backfill script:*
+```bash
+python run_backfill.py
+```
+
+#### FastAPI Mode (HTTP API)
+Runs an HTTP server on port 8000. You can trigger runs via HTTP POST requests:
+```bash
+RUNNER_TYPE=fastapi python -m agent_framework.runner
+```
+To trigger a run:
+```bash
+curl -X POST http://localhost:8000/runs/insta-dm-automation \
+  -H "Content-Type: application/json" \
+  -d '{"input": "Process new DMs"}'
+```
+This returns a unique request identifier:
+```json
+{"requestId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"}
+```
+You can query the status endpoint to monitor the run progress:
+```bash
+curl http://localhost:8000/runs/a1b2c3d4-e5f6-7890-abcd-ef1234567890
+```
+Which returns:
+```json
+{"lifecycleState": "COMPLETED"}
+```
+*(Available states: `ONGOING`, `COMPLETED`, `FAILED`)*
+
+#### Cron Mode (Scheduled Executions)
+Runs the graph on a repeating cron schedule using APScheduler:
+```bash
+RUNNER_TYPE=cron \
+  CRON_SCHEDULE="*/5 * * * *" \
+  CRON_GRAPH_NAME=insta-dm-automation \
+  python -m agent_framework.runner
+```
+
+For more details on endpoints and other settings, see the [Runners](#runners) section.
 
 ---
 
