@@ -16,7 +16,7 @@ class FetchMessagesNode(InstaDMBaseNode):
 
     async def run(self, state: InstaDMState) -> dict[str, Any]:
         logger.info("Fetching messages from Instagram DM reader...")
-        limit = 5 # Can be made configurable
+        limit = settings.dm_fetch_limit
         
         credentials = load_instagram_credentials()
         client = get_instagrapi_client(credentials)

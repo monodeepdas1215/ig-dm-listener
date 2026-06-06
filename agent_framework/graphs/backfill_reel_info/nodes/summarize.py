@@ -7,6 +7,7 @@ from agent_framework.graphs.backfill_reel_info.state import BackfillReelInfoStat
 from agent_framework.graphs.insta_dm_automation.nodes.analyze_reels import analyze_video_task
 from app.services.database import update_reel_analyzed, update_lifecycle_state
 from app.schemas.db import LifecycleState
+from app.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +28,18 @@ class SummarizeNode(BackfillBaseNode):
             user_prompt = f.read()
 
         llm = self.context.llm
+        provider = self.context.llm_provider or "google-genai"
         summary_results = []
+        
+        reduce_system_prompt = None
+        reduce_user_prompt = None
+        reduce_sys_path = os.path.join(prompts_dir, "reduce_system_prompt.md")
+        reduce_usr_path = os.path.join(prompts_dir, "reduce_user_prompt.md")
+        if os.path.exists(reduce_sys_path) and os.path.exists(reduce_usr_path):
+            with open(reduce_sys_path, "r") as f:
+                reduce_system_prompt = f.read()
+            with open(reduce_usr_path, "r") as f:
+                reduce_user_prompt = f.read()
         
         # Process sequentially
         for record in requires_summary:
@@ -35,7 +47,15 @@ class SummarizeNode(BackfillBaseNode):
             local_path = record["local_path"]
             
             try:
-                res = await analyze_video_task(llm, system_prompt, user_prompt, msg_id, local_path)
+                res = await analyze_video_task(
+                    llm, system_prompt, user_prompt, msg_id, local_path,
+                    provider=provider,
+                    reduce_system_prompt=reduce_system_prompt,
+                    reduce_user_prompt=reduce_user_prompt,
+                    chunk_size_mb=settings.zai_video_chunk_size_mb,
+                    map_max_concurrent=settings.zai_video_map_max_concurrent,
+                    vision_model=settings.zai_vision_model,
+                )
                 
                 if res and "summary" in res:
                     # Success

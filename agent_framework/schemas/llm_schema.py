@@ -7,6 +7,11 @@ class LLMProvider(str, Enum):
     ANTHROPIC = "anthropic"
     GOOGLE_GENAI = "google-genai"
     OLLAMA = "ollama"
+    ZHIPUAI = "zhipuai"
+
+    def is_glm(self) -> bool:
+        """Returns True for ZhipuAI/GLM providers that use native SDK."""
+        return self == LLMProvider.ZHIPUAI
 
 class LLMParameters(BaseModel):
     temperature: float = 0.15
@@ -23,6 +28,7 @@ class LLMConfig(BaseModel):
     parameters: LLMParameters = LLMParameters()
     base_url: str | None = None
     organization: str | None = None
+    extra_model_kwargs: dict | None = None
 
 class LLMsConfig(BaseModel):
     llms: list[LLMConfig]

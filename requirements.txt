@@ -14,3 +14,4 @@ mcp>=1.0
 langchain-mcp-adapters>=0.1
 asyncpg>=0.30
 apscheduler>=3.10
+zai-sdk==0.2.2

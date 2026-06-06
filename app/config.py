@@ -33,6 +33,7 @@ class Settings:
     ig_username: str = os.getenv(IG_USERNAME, "")
     ig_password: str = os.getenv(IG_PASSWORD, "")
     ig_dm_sender_username: str = os.getenv(IG_DM_SENDER_USERNAME, "")
+    dm_fetch_limit: int = int(os.getenv("DM_FETCH_LIMIT", "1"))
     log_level: str = os.getenv(LOG_LEVEL, "INFO")
     log_debug: bool = _env_bool(LOG_DEBUG, False)
     log_dir: str = os.getenv(LOG_DIR, "logs")
@@ -69,6 +70,13 @@ class Settings:
     db_pool_min: int = int(os.getenv("DB_POOL_MIN", "2"))
     db_pool_max: int = int(os.getenv("DB_POOL_MAX", "10"))
     max_concurrent_workers: int = int(os.getenv("MAX_CONCURRENT_WORKERS", "2"))
+    
+    # ZAI / ZhipuAI specific
+    zai_timeout: int = int(os.getenv("ZAI_TIMEOUT", "300"))
+    zai_max_retries: int = int(os.getenv("ZAI_MAX_RETRIES", "2"))
+    zai_video_chunk_size_mb: float = float(os.getenv("ZAI_VIDEO_CHUNK_SIZE_MB", "2.0"))
+    zai_video_map_max_concurrent: int = int(os.getenv("ZAI_VIDEO_MAP_MAX_CONCURRENT", "2"))
+    zai_vision_model: str = os.getenv("ZAI_VISION_MODEL", "glm-4.6v")
     
     # Obsidian
     obsidian_vault_folder: str = os.getenv("OBSIDIAN_VAULT_FOLDER", "raw/instaKB")

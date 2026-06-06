@@ -90,11 +90,14 @@ class GraphCompiler:
 
         # 3. Context
         llm = None
+        llm_provider = None
         if graph_def.llm_ref:
             llm = self.llm_loader.get_llm(graph_def.llm_ref)
+            llm_provider = self.llm_loader.get_provider(graph_def.llm_ref)
             
         context = GraphContext(
             llm=llm,
+            llm_provider=llm_provider,
             tool_loaders=self.tool_loaders,
             graph_registry=self.registry,
             graph_name=graph_def.name
@@ -105,6 +108,7 @@ class GraphCompiler:
             # We need to set the node name in the context for this specific node
             node_context = GraphContext(
                 llm=context.llm,
+                llm_provider=context.llm_provider,
                 tool_loaders=context.tool_loaders,
                 graph_registry=context.graph_registry,
                 graph_name=context.graph_name,

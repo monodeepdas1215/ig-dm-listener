@@ -1,7 +1,8 @@
 import os
 import logging
-from typing import Dict
+from typing import Dict, Union
 from langchain_core.language_models import BaseChatModel
+from agent_framework.core.zai_caller import ZaiCaller
 from agent_framework.schemas.llm_schema import LLMConfig, LLMProvider, LLMsConfig
 from agent_framework.exceptions import LLMLoadError
 
@@ -13,10 +14,10 @@ class LLMLoader:
 
     def __init__(self, config: LLMsConfig):
         self.config = config
-        self._cache: Dict[str, BaseChatModel] = {}
+        self._cache: Dict[str, Union[BaseChatModel, ZaiCaller]] = {}
         self._configs: Dict[str, LLMConfig] = {llm.name: llm for llm in config.llms}
 
-    def get_llm(self, name: str) -> BaseChatModel:
+    def get_llm(self, name: str) -> Union[BaseChatModel, ZaiCaller]:
         """Get an instantiated LLM by name."""
         if name in self._cache:
             return self._cache[name]
@@ -34,6 +35,12 @@ class LLMLoader:
         except Exception as e:
             raise LLMLoadError(f"Failed to instantiate LLM '{name}': {e}")
 
+    def get_provider(self, name: str) -> str:
+        """Get the provider string for a named LLM."""
+        if name not in self._configs:
+            raise LLMLoadError(f"LLM '{name}' not found in configuration")
+        return self._configs[name].provider.value
+
     def _resolve_api_key(self, api_key_env: str) -> str:
         """Resolve API key from environment variable reference."""
         # e.g., "${OPENAI_API_KEY}" -> "OPENAI_API_KEY"
@@ -49,8 +56,8 @@ class LLMLoader:
             raise LLMLoadError(f"Environment variable '{api_key_env}' not set")
         return val
 
-    def _instantiate_llm(self, config: LLMConfig, api_key: str) -> BaseChatModel:
-        """Create LangChain ChatModel based on provider."""
+    def _instantiate_llm(self, config: LLMConfig, api_key: str) -> Union[BaseChatModel, ZaiCaller]:
+        """Create LangChain ChatModel or ZaiCaller based on provider."""
         params = config.parameters.model_dump(exclude_none=True)
 
         if config.provider == LLMProvider.OPENAI:
@@ -60,13 +67,6 @@ class LLMLoader:
                 api_key=api_key,
                 base_url=config.base_url,
                 organization=config.organization,
-                **params
-            )
-        elif config.provider == LLMProvider.ANTHROPIC:
-            from langchain_anthropic import ChatAnthropic
-            return ChatAnthropic(
-                model=config.model,
-                api_key=api_key,
                 **params
             )
         elif config.provider == LLMProvider.GOOGLE_GENAI:
@@ -82,6 +82,14 @@ class LLMLoader:
                 model=config.model,
                 api_key=api_key or "ollama",
                 base_url=config.base_url or "http://localhost:11434/v1",
+                **params
+            )
+        elif config.provider == LLMProvider.ZHIPUAI:
+            from agent_framework.core.zai_caller import ZaiCaller
+            return ZaiCaller(
+                model=config.model,
+                api_key=api_key,
+                base_url=config.base_url or "https://api.z.ai/api/paas/v4",
                 **params
             )
         else:

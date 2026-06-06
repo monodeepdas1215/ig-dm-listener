@@ -80,6 +80,7 @@ ig-dm-listener/
 | Requirement | Version | Notes |
 |---|---|---|
 | **Python** | 3.11+ | Required for `asyncpg`, type hints |
+| **ffmpeg** | — | Required for chunking large videos for LLM analysis. Install via `brew install ffmpeg` on macOS, or `apt install ffmpeg` on Ubuntu. |
 | **Docker** | 20+ | With Docker Compose v2 |
 | **Google API Key** | — | For Gemini LLM ([get one here](https://aistudio.google.com/apikey)) |
 | **Instagram Account** | — | Test account credentials for Instagrapi |

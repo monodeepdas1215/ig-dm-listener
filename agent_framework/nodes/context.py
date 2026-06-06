@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from langchain_core.language_models import BaseChatModel
+from typing import Any
 from agent_framework.tools.base import BaseToolLoader
 
 
@@ -10,7 +10,8 @@ class GraphContext:
     Provides the node with access to the graph's LLM, tool loaders,
     and the compiled graph registry (for invoke-graph-node).
     """
-    llm: BaseChatModel | None = None
+    llm: Any = None
+    llm_provider: str | None = None
     tool_loaders: list[BaseToolLoader] = field(default_factory=list)
     graph_registry: dict = field(default_factory=dict)
     graph_name: str = ""

@@ -3,7 +3,7 @@
     {
       "name": "insta-dm-automation",
       "description": "Analyze Instagram Reels in DMs",
-      "llm_ref": "gemini_flash",
+      "llm_ref": "zai_glm5.1",
       "state": "agent_framework.graphs.insta_dm_automation.state.InstaDMState",
       "checkpointer": "memory",
       "entry_point": "authenticate_clients",
