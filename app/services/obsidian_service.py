@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 # Path to the highlight prompt template
 _HIGHLIGHT_PROMPT_PATH = os.path.join(
     os.path.dirname(__file__), "..", "..",
-    "agent_framework", "graphs", "insta_dm_automation", "prompts", "highlight_prompt.md",
+    "agent_framework", "graphs", "shared", "prompts", "highlight_prompt.md",
 )
 
 
@@ -45,7 +45,17 @@ def format_reel_note(reel_record: dict, summary_data: dict, creator_username: st
                 tags.append(t_clean)
                 
     summary = summary_data.get("summary", "No summary available.")
-    extracted_text = summary_data.get("extracted_text", "No extracted text available.")
+    
+    visual_text = summary_data.get("visual_text", "")
+    transcript = summary_data.get("transcript", "")
+    extracted_text_parts = []
+    if visual_text:
+        extracted_text_parts.append(f"**Visual Text:**\n{visual_text}")
+    if transcript:
+        extracted_text_parts.append(f"**Transcript:**\n{transcript}")
+    
+    extracted_text = "\n\n".join(extracted_text_parts) if extracted_text_parts else "No extracted text available."
+    
     synced_at = datetime.now().isoformat()
     
     # Construct YAML frontmatter
@@ -107,9 +117,13 @@ async def generate_highlight(llm: BaseChatModel, summary_data: dict) -> str:
             template = f.read()
 
         tags = summary_data.get("tags", [])
+        visual_text = summary_data.get("visual_text", "")
+        transcript = summary_data.get("transcript", "")
+        extracted_text = f"Visual Text: {visual_text}\nTranscript: {transcript}" if visual_text or transcript else ""
+
         rendered = template.format(
             summary=summary_data.get("summary", ""),
-            extracted_text=summary_data.get("extracted_text", ""),
+            extracted_text=extracted_text,
             tags=", ".join(tags) if isinstance(tags, list) else str(tags),
             location=summary_data.get("location") or "Unknown",
         )

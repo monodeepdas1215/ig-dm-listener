@@ -54,10 +54,12 @@ class Settings:
     download_max_concurrent: int = int(os.getenv("DOWNLOAD_MAX_CONCURRENT", "3"))
     download_inter_call_delay_max: float = float(os.getenv("DOWNLOAD_INTER_CALL_DELAY_MAX", "30.0"))
 
-    # Backfill
-    backfill_batch_size: int = int(os.getenv("BACKFILL_BATCH_SIZE", "5"))
-    backfill_stale_threshold_minutes: int = int(os.getenv("BACKFILL_STALE_THRESHOLD_MINUTES", "15"))
-    
+    # Analysis
+    analysis_batch_size: int = int(os.getenv("ANALYSIS_BATCH_SIZE", "5"))
+
+    # Knowledge Base Sync
+    kb_sync_batch_size: int = int(os.getenv("KB_SYNC_BATCH_SIZE", "10"))
+
     # Database
     drop_db_on_start: bool = os.getenv("DROP_DB_ON_START", "false").lower() == "true"
 

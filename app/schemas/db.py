@@ -1,15 +1,6 @@
-from enum import Enum
 from pydantic import BaseModel
 from typing import Any, Optional
-
-
-class LifecycleState(str, Enum):
-    ONGOING = "ONGOING"
-    DOWNLOADED = "DOWNLOADED"
-    ANALYZED = "ANALYZED"
-    SYNCED = "SYNCED"
-    FAILED = "FAILED"
-    RETRYING = "RETRYING"
+from app.schemas.lifecycle_state_machine import LifecycleState
 
 
 class ReelMetadata(BaseModel):
@@ -22,4 +13,6 @@ class ReelMetadata(BaseModel):
     media_pk: str
     local_path: Optional[str] = None
     summary_json: Optional[str] = None
-    lifecycle_state: LifecycleState = LifecycleState.ONGOING
+    chunk_manifest: Optional[str] = None
+    lifecycle_state: LifecycleState = LifecycleState.READ
+

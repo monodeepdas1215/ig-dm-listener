@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 from typing import Any
 
 from instagrapi import Client
@@ -92,6 +93,24 @@ def read_dm_metadata_for_sender(
         "thread": convert_thread_metadata(thread),
         "messages": [convert_message_metadata(message) for message in filtered_messages],
     }
+
+
+def download_reel_video(
+    *,
+    client: Client,
+    video_url: str,
+    shortcode: str,
+    media_pk: str,
+    message_id: str,
+    download_dir: str,
+) -> str:
+    logger.info("Downloading reel shortcode=%s media_pk=%s", shortcode, media_pk)
+    os.makedirs(download_dir, exist_ok=True)
+    local_path = client.clip_download(int(media_pk), folder=download_dir)
+    if not local_path:
+        raise RuntimeError(f"clip_download returned empty for media_pk={media_pk}")
+    logger.info("Downloaded reel shortcode=%s → %s", shortcode, local_path)
+    return str(local_path)
 
 
 def print_dm_metadata_for_sender(*, message_limit: int = 20) -> None:

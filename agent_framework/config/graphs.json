@@ -1,199 +1,167 @@
 {
   "graphs": [
     {
-      "name": "insta-dm-automation",
-      "description": "Analyze Instagram Reels in DMs",
+      "name": "insta-reel-downloader",
+      "description": "Reads unread inbox messages, dedups, and downloads reels locally.",
       "llm_ref": "zai_glm5.1",
-      "state": "agent_framework.graphs.insta_dm_automation.state.InstaDMState",
+      "state": "agent_framework.graphs.insta_reel_downloader.state.InstaReelDownloaderState",
       "checkpointer": "memory",
-      "entry_point": "authenticate_clients",
-      "finish_point": "generate_summary",
+      "entry_point": "read_inbox",
+      "finish_point": "report",
       "nodes": [
         {
-          "name": "authenticate_clients",
+          "name": "read_inbox",
           "type": "graph-node",
-          "path": "agent_framework.graphs.insta_dm_automation.nodes.authenticate.AuthenticateClientsNode"
-        },
-        {
-          "name": "fetch_messages",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.insta_dm_automation.nodes.fetch_messages.FetchMessagesNode"
+          "path": "agent_framework.graphs.insta_reel_downloader.nodes.read_inbox.ReadInboxNode"
         },
         {
           "name": "download_reels",
           "type": "graph-node",
-          "path": "agent_framework.graphs.insta_dm_automation.nodes.download_reels.DownloadReelsNode"
-        },
-        {
-          "name": "analyze_reels",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.insta_dm_automation.nodes.analyze_reels.AnalyzeReelsNode"
-        },
-        {
-          "name": "update_knowledge_base",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.insta_dm_automation.nodes.update_knowledge_base.UpdateKnowledgeBaseNode"
-        },
-        {
-          "name": "generate_summary",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.insta_dm_automation.nodes.generate_summary.GenerateSummaryNode"
-        }
-      ],
-      "edges": [
-        {
-          "from": "authenticate_clients",
-          "to": "fetch_messages"
-        },
-        {
-          "from": "fetch_messages",
-          "to": "download_reels",
-          "condition": {
-            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.has_unread_reels",
-            "description": "Proceed to download if there are new reels"
-          }
-        },
-        {
-          "from": "fetch_messages",
-          "to": "generate_summary",
-          "condition": {
-            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.no_unread_reels",
-            "description": "Skip to summary if no new reels"
-          }
-        },
-        {
-          "from": "download_reels",
-          "to": "analyze_reels",
-          "condition": {
-            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.has_downloaded_files",
-            "description": "Proceed to analysis only if at least one reel was downloaded"
-          }
-        },
-        {
-          "from": "download_reels",
-          "to": "generate_summary",
-          "condition": {
-            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.no_downloaded_files",
-            "description": "Skip to summary on total download failure"
-          }
-        },
-        {
-          "from": "analyze_reels",
-          "to": "update_knowledge_base",
-          "condition": {
-            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.has_reel_summaries",
-            "description": "Proceed to sync knowledge base if we have summaries"
-          }
-        },
-        {
-          "from": "analyze_reels",
-          "to": "generate_summary",
-          "condition": {
-            "handler": "agent_framework.graphs.insta_dm_automation.edges.conditions.no_reel_summaries",
-            "description": "Skip knowledge base if no summaries"
-          }
-        },
-        {
-          "from": "update_knowledge_base",
-          "to": "generate_summary"
-        }
-      ]
-    },
-    {
-      "name": "backfill-reel-info",
-      "description": "Backfill stale/failed reel records that errored in the main pipeline",
-      "llm_ref": "gemini_flash",
-      "state": "agent_framework.graphs.backfill_reel_info.state.BackfillReelInfoState",
-      "checkpointer": "memory",
-      "entry_point": "read_n_records",
-      "finish_point": "report",
-      "nodes": [
-        {
-          "name": "read_n_records",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.backfill_reel_info.nodes.read_n_records.ReadNRecordsNode"
-        },
-        {
-          "name": "segregate_records",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.backfill_reel_info.nodes.segregate_records.SegregateRecordsNode"
-        },
-        {
-          "name": "download",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.backfill_reel_info.nodes.download.DownloadNode"
-        },
-        {
-          "name": "summarize",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.backfill_reel_info.nodes.summarize.SummarizeNode"
-        },
-        {
-          "name": "update_knowledge_base",
-          "type": "graph-node",
-          "path": "agent_framework.graphs.backfill_reel_info.nodes.update_knowledge_base.BackfillUpdateKnowledgeBaseNode"
+          "path": "agent_framework.graphs.insta_reel_downloader.nodes.download_reels.DownloadReelsNode"
         },
         {
           "name": "report",
           "type": "graph-node",
-          "path": "agent_framework.graphs.backfill_reel_info.nodes.report.ReportNode"
+          "path": "agent_framework.graphs.insta_reel_downloader.nodes.report.ReportNode"
         }
       ],
       "edges": [
         {
-          "from": "read_n_records",
-          "to": "segregate_records",
+          "from": "read_inbox",
+          "to": "download_reels",
           "condition": {
-            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.has_stale_records",
-            "description": "Proceed if stale/failed records found"
+            "handler": "agent_framework.graphs.insta_reel_downloader.edges.conditions.has_new_reels"
           }
         },
         {
-          "from": "read_n_records",
+          "from": "read_inbox",
           "to": "report",
           "condition": {
-            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.no_stale_records",
-            "description": "Skip to report if nothing to backfill"
+            "handler": "agent_framework.graphs.insta_reel_downloader.edges.conditions.no_new_reels"
           }
         },
         {
-          "from": "segregate_records",
-          "to": "download",
+          "from": "download_reels",
+          "to": "report"
+        }
+      ]
+    },
+    {
+      "name": "reel-analysis",
+      "description": "Processes DOWNLOADED records, chunks videos, and runs map-reduce analysis.",
+      "llm_ref": "zai_glm_4.6v",
+      "state": "agent_framework.graphs.reel_analysis.state.ReelAnalysisState",
+      "checkpointer": "memory",
+      "entry_point": "fetch_downloaded_records",
+      "finish_point": "report",
+      "nodes": [
+        {
+          "name": "fetch_downloaded_records",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.reel_analysis.nodes.fetch_downloaded_records.FetchDownloadedRecordsNode"
+        },
+        {
+          "name": "chunk_videos",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.reel_analysis.nodes.chunk_videos.ChunkVideosNode"
+        },
+        {
+          "name": "analyze_reels",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.reel_analysis.nodes.analyze_reels.AnalyzeReelsNode"
+        },
+        {
+          "name": "report",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.reel_analysis.nodes.report.ReportNode"
+        }
+      ],
+      "edges": [
+        {
+          "from": "fetch_downloaded_records",
+          "to": "chunk_videos",
           "condition": {
-            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.has_downloads_needed",
-            "description": "Route to download if records need downloading"
+            "handler": "agent_framework.graphs.reel_analysis.edges.conditions.has_downloaded_records"
           }
         },
         {
-          "from": "segregate_records",
-          "to": "summarize",
+          "from": "fetch_downloaded_records",
+          "to": "report",
           "condition": {
-            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.no_downloads_needed",
-            "description": "Skip to summarize if only summaries needed"
+            "handler": "agent_framework.graphs.reel_analysis.edges.conditions.no_downloaded_records"
           }
         },
         {
-          "from": "download",
-          "to": "summarize",
+          "from": "chunk_videos",
+          "to": "analyze_reels"
+        },
+        {
+          "from": "analyze_reels",
+          "to": "report"
+        }
+      ]
+    },
+    {
+      "name": "knowledge-base-sync",
+      "description": "Syncs ANALYZED records to Obsidian via MCP vault_write.",
+      "llm_ref": "gemini_flash",
+      "state": "agent_framework.graphs.knowledge_base_sync.state.KBSyncState",
+      "checkpointer": "memory",
+      "entry_point": "fetch_analyzed_records",
+      "finish_point": "report",
+      "nodes": [
+        {
+          "name": "fetch_analyzed_records",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.knowledge_base_sync.nodes.fetch_analyzed_records.FetchAnalyzedRecordsNode"
+        },
+        {
+          "name": "check_mcp",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.knowledge_base_sync.nodes.check_mcp.CheckMCPNode"
+        },
+        {
+          "name": "sync_obsidian",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.knowledge_base_sync.nodes.sync_obsidian.SyncObsidianNode"
+        },
+        {
+          "name": "report",
+          "type": "graph-node",
+          "path": "agent_framework.graphs.knowledge_base_sync.nodes.report.ReportNode"
+        }
+      ],
+      "edges": [
+        {
+          "from": "fetch_analyzed_records",
+          "to": "check_mcp",
           "condition": {
-            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.has_summaries_needed",
-            "description": "Proceed to summarize after downloads"
+            "handler": "agent_framework.graphs.knowledge_base_sync.edges.conditions.has_analyzed_records"
           }
         },
         {
-          "from": "download",
-          "to": "update_knowledge_base",
+          "from": "fetch_analyzed_records",
+          "to": "report",
           "condition": {
-            "handler": "agent_framework.graphs.backfill_reel_info.edges.conditions.no_summaries_needed",
-            "description": "Proceed to knowledge base sync if no summaries needed"
+            "handler": "agent_framework.graphs.knowledge_base_sync.edges.conditions.no_analyzed_records"
           }
         },
         {
-          "from": "summarize",
-          "to": "update_knowledge_base"
+          "from": "check_mcp",
+          "to": "sync_obsidian",
+          "condition": {
+            "handler": "agent_framework.graphs.knowledge_base_sync.edges.conditions.is_mcp_available"
+          }
         },
         {
-          "from": "update_knowledge_base",
+          "from": "check_mcp",
+          "to": "report",
+          "condition": {
+            "handler": "agent_framework.graphs.knowledge_base_sync.edges.conditions.no_mcp_available"
+          }
+        },
+        {
+          "from": "sync_obsidian",
           "to": "report"
         }
       ]

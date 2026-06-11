@@ -105,10 +105,16 @@ class GraphCompiler:
 
         # 4. Add Nodes
         for node_def in graph_def.nodes:
-            # We need to set the node name in the context for this specific node
+            # Resolve per-node LLM (if configured) or fall back to graph-level
+            node_llm = context.llm
+            node_llm_provider = context.llm_provider
+            if node_def.llm_ref:
+                node_llm = self.llm_loader.get_llm(node_def.llm_ref)
+                node_llm_provider = self.llm_loader.get_provider(node_def.llm_ref)
+
             node_context = GraphContext(
-                llm=context.llm,
-                llm_provider=context.llm_provider,
+                llm=node_llm,
+                llm_provider=node_llm_provider,
                 tool_loaders=context.tool_loaders,
                 graph_registry=context.graph_registry,
                 graph_name=context.graph_name,

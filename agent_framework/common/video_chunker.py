@@ -18,6 +18,15 @@ class VideoChunk:
     start_sec: float       # Start time in the original video (seconds)
     duration_sec: float    # Duration of this chunk (seconds)
     size_bytes: int = 0    # Actual file size after splitting
+    
+    def to_dict(self) -> dict:
+        return {
+            "path": self.path,
+            "index": self.index,
+            "start_sec": self.start_sec,
+            "duration_sec": self.duration_sec,
+            "size_bytes": self.size_bytes,
+        }
 
 
 @dataclass
@@ -50,13 +59,19 @@ class ChunkManifest:
         logger.info(f"Chunk manifest saved: {self.manifest_path}")
         return self.manifest_path
     
+    @classmethod
+    def from_dict(cls, data: dict) -> "ChunkManifest":
+        """Create a ChunkManifest from a dictionary."""
+        chunks_data = data.pop("chunks", [])
+        chunks = [VideoChunk(**c) for c in chunks_data]
+        return cls(**data, chunks=chunks)
+
     @staticmethod
     def load(manifest_path: str) -> "ChunkManifest":
         """Load a manifest from disk."""
         with open(manifest_path, "r") as f:
             data = json.load(f)
-        chunks = [VideoChunk(**c) for c in data.pop("chunks", [])]
-        return ChunkManifest(**data, chunks=chunks)
+        return ChunkManifest.from_dict(data)
 
 
 async def _probe_video(input_path: str) -> tuple[float, int]:

@@ -16,14 +16,15 @@ graph TD
     CRON --> GC
 
     GC --> |"graphs.json + llms.conf"| LG["LangGraph Pipeline"]
-    LG --> N1["Authenticate"]
-    N1 --> N2["Fetch Messages"]
-    N2 --> N3["Download Reels"]
-    N3 --> N4["Analyze Reels (LLM)"]
-    N4 --> N5["Generate Summary"]
+    LG --> G1["insta-reel-downloader"]
+    G1 --> G2["reel-analysis"]
+    G2 --> G3["knowledge-base-sync"]
 
-    N3 --> FS["downloaded_reel/"]
-    N5 --> PG["PostgreSQL<br/>reel_analysis table"]
+    G1 --> FS["downloaded_reel/"]
+    G1 --> PG["PostgreSQL<br/>READ -> DOWNLOADED"]
+    G2 --> PG2["PostgreSQL<br/>DOWNLOADED -> CHUNKED -> ANALYZED"]
+    G3 --> PG3["PostgreSQL<br/>ANALYZED -> COMPLETED"]
+    G3 --> OBS["Obsidian Vault"]
 ```
 
 ## Project Structure
@@ -39,8 +40,10 @@ ig-dm-listener/
 │   │   ├── graph_compiler.py    # Compiles graph JSON into LangGraph runnables
 │   │   └── llm_loader.py        # Resolves LLM instances from config
 │   ├── graphs/
-│   │   ├── insta_dm_automation/  # Main DM → Download → Analyze pipeline
-│   │   └── backfill_reel_info/   # Retry stale/failed records
+│   │   ├── shared/               # Shared prompts and nodes
+│   │   ├── insta_reel_downloader/ # Reads DMs and downloads reels
+│   │   ├── reel_analysis/        # Chunks and analyzes reels via LLM
+│   │   └── knowledge_base_sync/  # Syncs results to Obsidian
 │   ├── runners/
 │   │   ├── base_runner.py       # Abstract base (config loading, graph compilation)
 │   │   ├── cli_runner.py        # Interactive / batch CLI
@@ -150,21 +153,30 @@ The application supports three runner modes configured via the `RUNNER_TYPE` env
 #### CLI Mode (Default)
 Best for manual execution and testing:
 
-##### Run the Main DM Automation Graph
+##### Run the Download Graph
 ```bash
 python -m agent_framework.runner \
-  --graph insta-dm-automation \
-  --input "Process new DMs"
+  --graph insta-reel-downloader \
+  --input "Fetch and download new DMs"
 ```
 
-##### Run the Backfill Graph
-To retry stale/failed reel records that errored in the main pipeline, run the backfill graph using either the framework runner or the standalone script:
-
-*Option A: Using the general framework CLI runner:*
+##### Run the Analysis Graph
 ```bash
 python -m agent_framework.runner \
-  --graph backfill-reel-info \
-  --input "Backfill stale records"
+  --graph reel-analysis \
+  --input "Analyze downloaded records"
+```
+
+##### Run the Sync Graph
+```bash
+python -m agent_framework.runner \
+  --graph knowledge-base-sync \
+  --input "Sync analyzed records to Obsidian"
+```
+
+##### Run All Sequentially
+```bash
+python run_backfill.py
 ```
 
 *Option B: Using the standalone backfill script:*
@@ -292,15 +304,13 @@ python -m agent_framework.runner --list
 # Validate config files (graphs.json, llms.conf, mcp.json) without running
 python -m agent_framework.runner --validate
 
-# Run a specific graph with input
+# Run the downloader graph
 python -m agent_framework.runner \
-  --graph insta-dm-automation \
-  --input "Process new DMs"
+  --graph insta-reel-downloader \
+  --input "Fetch new DMs"
 
-# Run the backfill graph
-python -m agent_framework.runner \
-  --graph backfill-reel-info \
-  --input "Backfill stale records"
+# Run all graphs sequentially
+python run_backfill.py
 ```
 
 **CLI Arguments:**
@@ -517,8 +527,9 @@ Declarative graph definitions. Each graph specifies:
 - **llm_ref** — which LLM config to use (references `llms.conf`)
 
 Available graphs:
-- `insta-dm-automation` — full DM → download → analyze → summarize pipeline
-- `backfill-reel-info` — retry stale/failed records from the main pipeline
+- `insta-reel-downloader` — Reads DMs and downloads reels
+- `reel-analysis` — Chunks videos and runs LLM analysis
+- `knowledge-base-sync` — Syncs analyzed records to Obsidian
 
 ### `llms.conf`
 

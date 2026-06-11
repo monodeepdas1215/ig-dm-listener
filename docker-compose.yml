@@ -18,49 +18,5 @@ services:
       retries: 5
     restart: unless-stopped
 
-  api:
-    build:
-      context: .
-      dockerfile: Dockerfile.api
-    ports:
-      - "8000:8000"
-    volumes:
-      - ./.env:/app/.env
-      - ./.instagrapi-session.json:/app/.instagrapi-session.json
-      - ./downloaded_reel:/app/downloaded_reel
-      - ./logs:/app/logs
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      - RUNNER_TYPE=fastapi
-      - DOWNLOAD_DIR=/app/downloaded_reel
-      - DATABASE_URL=postgresql://igapp:${POSTGRES_PASSWORD:-igapp_secret}@postgres:5432/ig_dm_listener
-
-  cron:
-    build:
-      context: .
-      dockerfile: Dockerfile.cron
-    volumes:
-      - ./.env:/app/.env
-      - ./.instagrapi-session.json:/app/.instagrapi-session.json
-      - ./downloaded_reel:/app/downloaded_reel
-      - ./logs:/app/logs
-    restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    env_file:
-      - .env
-    environment:
-      - RUNNER_TYPE=cron
-      - CRON_SCHEDULE=0 * * * *
-      - CRON_GRAPH_NAME=insta-dm
-      - DOWNLOAD_DIR=/app/downloaded_reel
-      - DATABASE_URL=postgresql://igapp:${POSTGRES_PASSWORD:-igapp_secret}@postgres:5432/ig_dm_listener
-
 volumes:
   postgres_data:

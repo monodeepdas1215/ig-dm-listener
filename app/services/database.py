@@ -65,8 +65,9 @@ async def init_db() -> None:
                 media_pk         TEXT,
                 local_path       TEXT,
                 summary_json     TEXT,
+                chunk_manifest   TEXT,
                 creator_username TEXT,
-                lifecycle_state  TEXT NOT NULL DEFAULT 'ONGOING',
+                lifecycle_state  TEXT NOT NULL DEFAULT 'READ',
                 created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
@@ -106,22 +107,27 @@ async def ensure_db() -> None:
                 media_pk         TEXT,
                 local_path       TEXT,
                 summary_json     TEXT,
+                chunk_manifest   TEXT,
                 creator_username TEXT,
-                lifecycle_state  TEXT NOT NULL DEFAULT 'ONGOING',
+                lifecycle_state  TEXT NOT NULL DEFAULT 'READ',
                 created_at       TIMESTAMPTZ NOT NULL DEFAULT NOW(),
                 updated_at       TIMESTAMPTZ NOT NULL DEFAULT NOW()
             )
             """
         )
-        # Attempt to add creator_username column to existing database
-        try:
-            await conn.execute("ALTER TABLE reel_analysis ADD COLUMN creator_username TEXT")
-            logger.info("Added creator_username column to reel_analysis table.")
-        except Exception as e:
-            if "already exists" in str(e).lower() or "duplicate_column" in str(e).lower():
-                pass
-            else:
-                logger.warning(f"Failed to check/add creator_username column: {e}")
+        # Attempt to add new columns to existing database
+        for alter_stmt, log_msg in [
+            ("ALTER TABLE reel_analysis ADD COLUMN creator_username TEXT", "creator_username"),
+            ("ALTER TABLE reel_analysis ADD COLUMN chunk_manifest TEXT", "chunk_manifest"),
+        ]:
+            try:
+                await conn.execute(alter_stmt)
+                logger.info(f"Added {log_msg} column to reel_analysis table.")
+            except Exception as e:
+                if "already exists" in str(e).lower() or "duplicate_column" in str(e).lower():
+                    pass
+                else:
+                    logger.warning(f"Failed to check/add {log_msg} column: {e}")
 
         await conn.execute(
             """
@@ -144,38 +150,26 @@ async def ensure_db() -> None:
 # Write operations
 # ---------------------------------------------------------------------------
 
-async def insert_reel_ongoing(
-    message_id: str,
-    thread_id: str,
-    timestamp: str,
-    video_url: str,
-    shortcode: str,
-    reel_url: str,
-    media_pk: str,
-    creator_username: str = "",
-) -> None:
+async def insert_reel_read(
+    message_id: str, thread_id: str, timestamp: str,
+    video_url: str, shortcode: str, reel_url: str,
+    media_pk: str, creator_username: str = "",
+) -> bool:
+    """Insert a new reel record with READ state. Returns False if already exists (dedup)."""
     pool = await get_pool()
     async with pool.acquire() as conn:
-        await conn.execute(
+        result = await conn.execute(
             """
             INSERT INTO reel_analysis
                 (message_id, thread_id, timestamp, video_url, shortcode,
                  reel_url, media_pk, creator_username, lifecycle_state, updated_at)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
-            ON CONFLICT (message_id) DO UPDATE
-                SET thread_id        = EXCLUDED.thread_id,
-                    timestamp        = EXCLUDED.timestamp,
-                    video_url        = EXCLUDED.video_url,
-                    shortcode        = EXCLUDED.shortcode,
-                    reel_url         = EXCLUDED.reel_url,
-                    media_pk         = EXCLUDED.media_pk,
-                    creator_username = COALESCE(NULLIF(EXCLUDED.creator_username, ''), reel_analysis.creator_username),
-                    lifecycle_state  = EXCLUDED.lifecycle_state,
-                    updated_at       = NOW()
+            ON CONFLICT (message_id) DO NOTHING
             """,
             message_id, thread_id, timestamp, video_url, shortcode,
-            reel_url, media_pk, creator_username, LifecycleState.ONGOING.value,
+            reel_url, media_pk, creator_username, LifecycleState.READ.value,
         )
+        return result == "INSERT 0 1"
 
 
 async def update_reel_downloaded(
@@ -225,6 +219,20 @@ async def update_reel_downloaded(
                     local_path, LifecycleState.DOWNLOADED.value, message_id,
                 )
 
+async def update_reel_chunked(
+    message_id: str, chunk_manifest_json: str
+) -> None:
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        await conn.execute(
+            """
+            UPDATE reel_analysis
+            SET chunk_manifest = $1, lifecycle_state = $2, updated_at = NOW()
+            WHERE message_id = $3
+            """,
+            chunk_manifest_json, LifecycleState.CHUNKED.value, message_id,
+        )
+
 
 async def update_reel_analyzed(
     message_id: str, summary_json: str | dict[str, Any]
@@ -243,10 +251,7 @@ async def update_reel_analyzed(
             summary_json, LifecycleState.ANALYZED.value, message_id,
         )
 
-
-async def update_lifecycle_state(
-    message_id: str, new_state: LifecycleState
-) -> None:
+async def update_reel_completed(message_id: str) -> None:
     pool = await get_pool()
     async with pool.acquire() as conn:
         await conn.execute(
@@ -255,41 +260,43 @@ async def update_lifecycle_state(
             SET lifecycle_state = $1, updated_at = NOW()
             WHERE message_id = $2
             """,
-            new_state.value, message_id,
+            LifecycleState.COMPLETED.value, message_id,
         )
+
+
+from app.schemas.lifecycle_state_machine import LIFECYCLE_STATE_MACHINE
+
+async def update_lifecycle_state(
+    message_id: str, new_state: LifecycleState
+) -> None:
+    """Atomically validate and execute a lifecycle state transition.
+    
+    Uses an explicit transaction to ensure the SELECT + UPDATE are atomic.
+    Prevents race conditions where two concurrent callers read the same
+    current state and both attempt to transition.
+    """
+    pool = await get_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            row = await conn.fetchrow(
+                "SELECT lifecycle_state FROM reel_analysis WHERE message_id = $1 FOR UPDATE",
+                message_id,
+            )
+            if not row:
+                raise ValueError(f"No record found for message_id={message_id}")
+            
+            current = LifecycleState(row["lifecycle_state"])
+            LIFECYCLE_STATE_MACHINE.transition(current, new_state)  # raises InvalidStateTransition
+            
+            await conn.execute(
+                "UPDATE reel_analysis SET lifecycle_state = $1, updated_at = NOW() WHERE message_id = $2",
+                new_state.value, message_id,
+            )
 
 
 # ---------------------------------------------------------------------------
 # Read operations
 # ---------------------------------------------------------------------------
-
-async def get_analyzed_message_ids(limit: int = 100) -> set[str]:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT message_id FROM reel_analysis
-            WHERE lifecycle_state IN ($1, $2)
-            ORDER BY updated_at DESC
-            LIMIT $3
-            """,
-            LifecycleState.ANALYZED.value, LifecycleState.SYNCED.value, limit,
-        )
-        return {row["message_id"] for row in rows}
-
-
-async def update_reel_synced(message_id: str) -> None:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        await conn.execute(
-            """
-            UPDATE reel_analysis
-            SET lifecycle_state = $1, updated_at = NOW()
-            WHERE message_id = $2
-            """,
-            LifecycleState.SYNCED.value, message_id,
-        )
-
 
 async def get_reel_by_message_id(message_id: str) -> dict | None:
     pool = await get_pool()
@@ -301,57 +308,17 @@ async def get_reel_by_message_id(message_id: str) -> dict | None:
         return dict(row) if row else None
 
 
-async def get_analyzed_unsynced_records(limit: int = 50) -> list[dict]:
+async def get_reels_by_lifecycle_batch(state: LifecycleState, limit: int = 50) -> List[Dict[str, Any]]:
     pool = await get_pool()
     async with pool.acquire() as conn:
         rows = await conn.fetch(
             """
             SELECT * FROM reel_analysis
             WHERE lifecycle_state = $1
-            ORDER BY updated_at DESC
+            ORDER BY updated_at ASC
             LIMIT $2
             """,
-            LifecycleState.ANALYZED.value, limit,
-        )
-        return [dict(row) for row in rows]
-
-
-async def get_reels_by_lifecycle(state: LifecycleState) -> List[Dict[str, Any]]:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT * FROM reel_analysis
-            WHERE lifecycle_state = $1
-            ORDER BY updated_at DESC
-            """,
-            state.value,
-        )
-        return [dict(row) for row in rows]
-
-
-async def get_stale_or_failed_records(
-    threshold_minutes: int, limit: int = 5
-) -> List[Dict[str, Any]]:
-    pool = await get_pool()
-    async with pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            SELECT * FROM reel_analysis
-            WHERE lifecycle_state = ANY($1::text[])
-              AND updated_at <= NOW() - ($2 * INTERVAL '1 minute')
-            ORDER BY created_at ASC
-            LIMIT $3
-            """,
-            [
-                LifecycleState.ONGOING.value,
-                LifecycleState.DOWNLOADED.value,
-                LifecycleState.ANALYZED.value,
-                LifecycleState.FAILED.value,
-                LifecycleState.RETRYING.value,
-            ],
-            threshold_minutes,
-            limit,
+            state.value, limit
         )
         return [dict(row) for row in rows]
 

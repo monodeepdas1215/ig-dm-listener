@@ -1,7 +1,7 @@
 import argparse
+import json
 import logging
 import uuid
-from pprint import pprint
 
 from langchain_core.messages import HumanMessage
 
@@ -69,7 +69,7 @@ class CLIRunner(BaseRunner):
                     print(f"[{last_msg.type.upper()}]: {last_msg.content[:200]}...")
                     
             final_state = await target_graph.aget_state(config)
-            logger.info("Final State:")
-            pprint(final_state.values)
+            state_json = json.dumps(final_state.values, default=str, indent=2)
+            logger.info("Final State:\n%s", state_json)
         finally:
             await self.cleanup()

@@ -23,6 +23,7 @@ class NodeDefinition(BaseModel):
     type: NodeType
     path: str                               # Dotted path to BaseNode subclass
     target_graph: str | None = None         # Only for invoke-graph-node
+    llm_ref: str | None = None              # Per-node LLM override
 
     @model_validator(mode="after")
     def validate_target_graph(self):

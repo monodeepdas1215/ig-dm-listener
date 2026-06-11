@@ -1,1 +1,0 @@
-# Edge conditions

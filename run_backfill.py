@@ -9,6 +9,7 @@ from agent_framework.core.llm_loader import LLMLoader
 from agent_framework.tools.mcp_loader import McpToolLoader
 from agent_framework.core.graph_compiler import GraphCompiler
 from app.logging_config import configure_logging
+from app.services.database import get_pool, close_pool
 import json
 
 def load_config(file_path: str, model_class):
@@ -39,36 +40,31 @@ async def main():
         logger.error(f"Failed to compile graphs: {e}")
         return
 
-    graph_name = "backfill-reel-info"
-    if graph_name not in registry:
-        logger.error(f"Graph '{graph_name}' not found.")
-        return
-
-    target_graph = registry[graph_name]
-
-    # Minimal initial state required to start the graph
-    initial_state = {
-        "messages": []
-    }
-
-    config = {"configurable": {"thread_id": "backfill_run_1"}}
-
-    logger.info(f"Running graph '{graph_name}'...")
+    graphs_to_run = ["insta-reel-downloader", "reel-analysis", "knowledge-base-sync"]
     
     try:
-        async for event in target_graph.astream(initial_state, config=config, stream_mode="values"):
-            pass
-                
-        # Get final state
-        final_state = await target_graph.aget_state(config)
-        logger.info("Final State Keys:")
-        logger.info(list(final_state.values.keys()))
-        
-        report_path = final_state.values.get("backfill_report_path", "No report generated")
-        logger.info(f"Finished. Report at: {report_path}")
-        
+        for i, graph_name in enumerate(graphs_to_run):
+            if graph_name not in registry:
+                logger.error(f"Graph '{graph_name}' not found.")
+                continue
+
+            target_graph = registry[graph_name]
+
+            initial_state = {}
+            config = {"configurable": {"thread_id": f"backfill_run_{i}"}}
+
+            logger.info(f"--- Running graph '{graph_name}' ---")
+            
+            async for event in target_graph.astream(initial_state, config=config, stream_mode="values"):
+                pass
+                    
+            final_state = await target_graph.aget_state(config)
+            report = final_state.values.get("final_report", "No report generated")
+            logger.info(f"Result of '{graph_name}':\n{report}\n")
+            
     finally:
         await mcp_loader.cleanup()
+        await close_pool()
 
 if __name__ == "__main__":
     asyncio.run(main())
